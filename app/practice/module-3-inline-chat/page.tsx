@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState, type PointerEvent } from 'react'
 
 /**
  * MODULE 3: Inline Chat - Edit Mode in Depth
@@ -117,22 +117,188 @@ export default function Module3Practice() {
               Create a component below and practice all Inline Chat techniques
             </p>
 
-            {/* 
-            
-            ⬇️⬇️⬇️ CREATE YOUR PRACTICE COMPONENT HERE ⬇️⬇️⬇️
-            
-            Ideas:
-            - A form with complex validation
-            - A data fetching component with loading states
-            - A filtering/sorting interface
-            - An interactive widget
-            
-            Then use Inline Chat to improve it step by step!
-            
-            */}
+            <DraggablePlayWidget />
           </section>
         </div>
       </div>
+    </div>
+  )
+}
+
+function DraggablePlayWidget() {
+  const playgroundRef = useRef<HTMLDivElement>(null)
+  const dragStartRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
+  const pointerSampleRef = useRef<{ x: number; y: number; time: number } | null>(null)
+  const velocityRef = useRef({ x: 0, y: 0 })
+  const animationFrameRef = useRef<number | null>(null)
+  const [position, setPosition] = useState({ left: 16, top: 16 })
+  const [clicks, setClicks] = useState(0)
+  const [colorIndex, setColorIndex] = useState(0)
+  const colors = ['bg-indigo-600', 'bg-emerald-600', 'bg-rose-600', 'bg-amber-600']
+
+  useEffect(
+    () => () => {
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current)
+    },
+    []
+  )
+
+  const throwWidget = () => {
+    let velocityX = velocityRef.current.x
+    let velocityY = velocityRef.current.y
+    if (Math.hypot(velocityX, velocityY) < 0.08) return
+
+    let current = position
+    let previousTime = 0
+    const animate = (time: number) => {
+      const delta = previousTime ? Math.min(time - previousTime, 32) : 16
+      previousTime = time
+      const bounds = playgroundRef.current?.getBoundingClientRect()
+      if (!bounds) return
+
+      const maxLeft = Math.max(0, bounds.width - 176)
+      const maxTop = Math.max(0, bounds.height - 136)
+      let left = current.left + velocityX * delta
+      let top = current.top + velocityY * delta
+
+      if (left < 0 || left > maxLeft) {
+        left = Math.max(0, Math.min(left, maxLeft))
+        velocityX *= -0.82
+      }
+      if (top < 0 || top > maxTop) {
+        top = Math.max(0, Math.min(top, maxTop))
+        velocityY *= -0.82
+      }
+
+      current = { left, top }
+      setPosition(current)
+      const friction = Math.pow(0.995, delta)
+      velocityX *= friction
+      velocityY *= friction
+
+      if (Math.hypot(velocityX, velocityY) >= 0.025) {
+        animationFrameRef.current = requestAnimationFrame(animate)
+      } else {
+        animationFrameRef.current = null
+      }
+    }
+    animationFrameRef.current = requestAnimationFrame(animate)
+  }
+
+  const moveWidget = (event: PointerEvent<HTMLButtonElement>) => {
+    if (!dragStartRef.current || !playgroundRef.current) return
+
+    const now = performance.now()
+    const sample = pointerSampleRef.current
+    if (sample) {
+      const elapsed = Math.max(1, now - sample.time)
+      velocityRef.current = {
+        x: (event.clientX - sample.x) / elapsed,
+        y: (event.clientY - sample.y) / elapsed,
+      }
+    }
+    pointerSampleRef.current = { x: event.clientX, y: event.clientY, time: now }
+
+    const { x, y, left, top } = dragStartRef.current
+    const bounds = playgroundRef.current.getBoundingClientRect()
+    setPosition({
+      left: Math.max(0, Math.min(left + event.clientX - x, bounds.width - 176)),
+      top: Math.max(0, Math.min(top + event.clientY - y, bounds.height - 136)),
+    })
+  }
+
+  return (
+    <div
+      ref={playgroundRef}
+      className="relative h-64 overflow-hidden rounded-lg border-2 border-dashed border-gray-300 bg-slate-100"
+      aria-label="Widget playground"
+    >
+      <div
+        className={`absolute w-44 rounded-xl p-4 text-white shadow-lg transition-colors ${colors[colorIndex]}`}
+        style={{ left: position.left, top: position.top }}
+        role="group"
+        aria-label="Interactive draggable widget"
+      >
+        <button
+          type="button"
+          className="mb-3 w-full cursor-grab touch-none rounded bg-black/20 px-2 py-1 text-left text-sm font-semibold active:cursor-grabbing"
+          aria-label="Drag widget; use arrow keys to move"
+          onPointerDown={event => {
+            if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current)
+            animationFrameRef.current = null
+            velocityRef.current = { x: 0, y: 0 }
+            pointerSampleRef.current = {
+              x: event.clientX,
+              y: event.clientY,
+              time: performance.now(),
+            }
+            dragStartRef.current = {
+              x: event.clientX,
+              y: event.clientY,
+              left: position.left,
+              top: position.top,
+            }
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }}
+          onPointerMove={moveWidget}
+          onPointerUp={() => {
+            dragStartRef.current = null
+            pointerSampleRef.current = null
+            throwWidget()
+          }}
+          onPointerCancel={() => {
+            dragStartRef.current = null
+            pointerSampleRef.current = null
+            velocityRef.current = { x: 0, y: 0 }
+          }}
+          onKeyDown={event => {
+            const step = 12
+            if (event.key === 'ArrowLeft')
+              setPosition(current => ({ ...current, left: Math.max(0, current.left - step) }))
+            if (event.key === 'ArrowRight')
+              setPosition(current => ({
+                ...current,
+                left: Math.min(
+                  (playgroundRef.current?.clientWidth ?? 176) - 176,
+                  current.left + step
+                ),
+              }))
+            if (event.key === 'ArrowUp')
+              setPosition(current => ({ ...current, top: Math.max(0, current.top - step) }))
+            if (event.key === 'ArrowDown')
+              setPosition(current => ({
+                ...current,
+                top: Math.min(
+                  (playgroundRef.current?.clientHeight ?? 136) - 136,
+                  current.top + step
+                ),
+              }))
+          }}
+        >
+          Drag me ✋
+        </button>
+        <p className="mb-3 text-center text-lg font-bold">Clicks: {clicks}</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="flex-1 rounded bg-white/20 px-2 py-1 text-sm hover:bg-white/30"
+            onClick={() => setClicks(count => count + 1)}
+          >
+            Click!
+          </button>
+          <button
+            type="button"
+            className="flex-1 rounded bg-white/20 px-2 py-1 text-sm hover:bg-white/30"
+            onClick={() => setColorIndex(index => (index + 1) % colors.length)}
+            aria-label="Change widget color"
+          >
+            🎨 Color
+          </button>
+        </div>
+      </div>
+      <p className="absolute bottom-2 right-3 text-xs text-gray-500">
+        Drag the handle or use arrow keys
+      </p>
     </div>
   )
 }
@@ -146,26 +312,23 @@ function PromiseBasedComponent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // This uses .then() chains - convert it to async/await!
-  const fetchUserData = () => {
+  const fetchUserData = async () => {
     setLoading(true)
     setError(null)
 
-    fetch('https://jsonplaceholder.typicode.com/users/1')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok')
-        }
-        return response.json()
-      })
-      .then(userData => {
-        setData(userData)
-        setLoading(false)
-      })
-      .catch(err => {
-        setError(err.message)
-        setLoading(false)
-      })
+    try {
+      const response = await fetch('https://jsonplaceholder.typicode.com/users/1')
+      if (!response.ok) {
+        throw new Error('Network response was not ok')
+      }
+
+      const userData = await response.json()
+      setData(userData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -206,45 +369,69 @@ function InaccessibleForm() {
     email: '',
     message: '',
   })
+  const [submitted, setSubmitted] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     console.log('Form submitted:', formData)
+    setSubmitted(true)
   }
 
   return (
     <div className="space-y-4">
-      <p className="text-gray-600">
-        This form lacks accessibility features. Add aria-labels, proper labels, and keyboard
-        navigation!
+      <p id="contact-form-help" className="text-gray-600">
+        Fields marked “required” must be completed.
       </p>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} aria-label="Contact form" aria-describedby="contact-form-help">
         <div>
+          <label htmlFor="contact-name">Name (required)</label>
           <input
+            id="contact-name"
+            name="name"
             type="text"
-            placeholder="Name"
+            autoComplete="name"
+            required
             value={formData.name}
-            onChange={e => setFormData({ ...formData, name: e.target.value })}
+            onChange={e => {
+              setFormData({ ...formData, name: e.target.value })
+              setSubmitted(false)
+            }}
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             style={{ border: '1px solid #ccc', padding: '8px', width: '100%' }}
           />
         </div>
 
         <div style={{ marginTop: '12px' }}>
+          <label htmlFor="contact-email">Email (required)</label>
           <input
-            type="text"
-            placeholder="Email"
+            id="contact-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
             value={formData.email}
-            onChange={e => setFormData({ ...formData, email: e.target.value })}
+            onChange={e => {
+              setFormData({ ...formData, email: e.target.value })
+              setSubmitted(false)
+            }}
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             style={{ border: '1px solid #ccc', padding: '8px', width: '100%' }}
           />
         </div>
 
         <div style={{ marginTop: '12px' }}>
+          <label htmlFor="contact-message">Message (required)</label>
           <textarea
-            placeholder="Message"
+            id="contact-message"
+            name="message"
+            required
             value={formData.message}
-            onChange={e => setFormData({ ...formData, message: e.target.value })}
+            onChange={e => {
+              setFormData({ ...formData, message: e.target.value })
+              setSubmitted(false)
+            }}
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             style={{ border: '1px solid #ccc', padding: '8px', width: '100%', minHeight: '100px' }}
           />
         </div>
@@ -252,6 +439,7 @@ function InaccessibleForm() {
         <div style={{ marginTop: '12px' }}>
           <button
             type="submit"
+            className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             style={{
               background: '#3B82F6',
               color: 'white',
@@ -263,6 +451,9 @@ function InaccessibleForm() {
             Submit
           </button>
         </div>
+        <p role="status" aria-live="polite" className="mt-2">
+          {submitted ? 'Form submitted successfully.' : ''}
+        </p>
       </form>
     </div>
   )
@@ -272,8 +463,74 @@ function InaccessibleForm() {
  * 🧹 MESSY COMPONENT
  * Refactor this into smaller, clearer functions!
  * ========================================== */
+type InventoryItem = {
+  id: number
+  name: string
+  category: 'Fruit' | 'Vegetable'
+  price: number
+  inStock: boolean
+}
+
+type ProcessedInventoryItem = InventoryItem & {
+  discountedPrice: number
+  formattedPrice: string
+  isOnSale: boolean
+}
+
+const getInStockItems = (items: InventoryItem[]) => items.filter(item => item.inStock)
+
+const filterItemsByCategory = (items: InventoryItem[], selectedCategory: string) => {
+  if (!selectedCategory) return items
+
+  return items.filter(item => item.category.toLowerCase() === selectedCategory.toLowerCase())
+}
+
+const sortItems = (items: InventoryItem[], currentSort: string) => {
+  const sortedItems = [...items]
+
+  if (currentSort === 'price') {
+    return sortedItems.sort((a, b) => a.price - b.price)
+  }
+
+  return sortedItems.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+const addPricingMetadata = (item: InventoryItem): ProcessedInventoryItem => {
+  const discountedPrice = item.price > 2 ? item.price * 0.9 : item.price
+
+  return {
+    ...item,
+    discountedPrice,
+    formattedPrice: `$${discountedPrice.toFixed(2)}`,
+    isOnSale: item.price > 2,
+  }
+}
+
+const getProcessedItems = (items: InventoryItem[], selectedCategory: string, currentSort: string) =>
+  sortItems(filterItemsByCategory(getInStockItems(items), selectedCategory), currentSort).map(
+    addPricingMetadata
+  )
+
+const renderItemCard = (item: ProcessedInventoryItem) => (
+  <div key={item.id} className="border rounded p-4">
+    <div className="flex justify-between items-start">
+      <div>
+        <h3 className="font-semibold">{item.name}</h3>
+        <p className="text-sm text-gray-600">{item.category}</p>
+      </div>
+      {item.isOnSale && (
+        <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">SALE</span>
+      )}
+    </div>
+    <p className="text-lg font-bold mt-2">{item.formattedPrice}</p>
+    {item.isOnSale && (
+      <p className="text-xs text-gray-500 line-through">${item.price.toFixed(2)}</p>
+    )}
+  </div>
+)
+
 function MessyComponent() {
-  const [items, setItems] = useState([
+  const [items] = useState<InventoryItem[]>([
     { id: 1, name: 'Apple', category: 'Fruit', price: 1.5, inStock: true },
     { id: 2, name: 'Banana', category: 'Fruit', price: 0.8, inStock: true },
     { id: 3, name: 'Carrot', category: 'Vegetable', price: 1.2, inStock: false },
@@ -282,27 +539,7 @@ function MessyComponent() {
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState('name')
 
-  // This is too long and does too many things - break it down!
-  const processedItems = items
-    .filter(item => {
-      if (filter === '') return true
-      return item.category.toLowerCase() === filter.toLowerCase()
-    })
-    .filter(item => item.inStock)
-    .sort((a, b) => {
-      if (sort === 'name') {
-        return a.name.localeCompare(b.name)
-      } else if (sort === 'price') {
-        return a.price - b.price
-      }
-      return 0
-    })
-    .map(item => {
-      const discountedPrice = item.price > 2 ? item.price * 0.9 : item.price
-      const formattedPrice = `$${discountedPrice.toFixed(2)}`
-      const isOnSale = item.price > 2
-      return { ...item, discountedPrice, formattedPrice, isOnSale }
-    })
+  const processedItems = getProcessedItems(items, filter, sort)
 
   return (
     <div className="space-y-4">
@@ -333,23 +570,7 @@ function MessyComponent() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {processedItems.map(item => (
-          <div key={item.id} className="border rounded p-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-semibold">{item.name}</h3>
-                <p className="text-sm text-gray-600">{item.category}</p>
-              </div>
-              {item.isOnSale && (
-                <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">SALE</span>
-              )}
-            </div>
-            <p className="text-lg font-bold mt-2">{item.formattedPrice}</p>
-            {item.isOnSale && (
-              <p className="text-xs text-gray-500 line-through">${item.price.toFixed(2)}</p>
-            )}
-          </div>
-        ))}
+        {processedItems.map(renderItemCard)}
       </div>
     </div>
   )
@@ -359,7 +580,7 @@ function MessyComponent() {
  * 🎨 STYLABLE COMPONENT
  * Improve the styling and performance!
  * ========================================== */
-function StylableComponent() {
+const StylableComponent = () => {
   const [count, setCount] = useState(0)
 
   // Inline styles - convert these to Tailwind!

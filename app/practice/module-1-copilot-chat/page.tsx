@@ -73,11 +73,7 @@ export default function Module1Practice() {
             <p className="text-gray-600 mb-4">
               Create a simple component below and experiment with Copilot suggestions
             </p>
-            {/* UNCOMMENT AND PRACTICE HERE:
-            
-            <YourPracticeComponent />
-            
-            */}
+            <ContactForm />
           </section>
         </div>
       </div>
@@ -206,6 +202,52 @@ function ComplexFilter() {
   )
 }
 
+function ContactForm() {
+  return (
+    <form onSubmit={event => event.preventDefault()} className="space-y-4">
+      <div>
+        <label htmlFor="contact-name" className="block mb-1 font-medium">
+          Name
+        </label>
+        <input
+          id="contact-name"
+          name="name"
+          type="text"
+          required
+          className="w-full px-4 py-2 border rounded"
+        />
+      </div>
+      <div>
+        <label htmlFor="contact-email" className="block mb-1 font-medium">
+          Email
+        </label>
+        <input
+          id="contact-email"
+          name="email"
+          type="email"
+          required
+          className="w-full px-4 py-2 border rounded"
+        />
+      </div>
+      <div>
+        <label htmlFor="contact-message" className="block mb-1 font-medium">
+          Message
+        </label>
+        <textarea
+          id="contact-message"
+          name="message"
+          rows={4}
+          required
+          className="w-full px-4 py-2 border rounded"
+        />
+      </div>
+      <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+        Send message
+      </button>
+    </form>
+  )
+}
+
 /* ==========================================
  * 💡 ADDITIONAL PRACTICE SUGGESTIONS
  * ==========================================
@@ -221,3 +263,5 @@ function ComplexFilter() {
  * prompting it effectively!
  *
  * ========================================== */
+
+  

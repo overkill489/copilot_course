@@ -76,3 +76,4 @@ Follow the course lessons and look for these markers to know where to apply what
 - Review Copilot's code before accepting it
 
 Happy coding! 🎉
+"# copilot_course" 
